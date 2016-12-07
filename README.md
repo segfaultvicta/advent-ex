@@ -1,4 +1,5 @@
-# advent-ex
-Advent of Code in elixir
+# Advent
 
-Test commit please ignore
+**Advent of Code - Elixir**
+
+Further bulletins as events warrant.
