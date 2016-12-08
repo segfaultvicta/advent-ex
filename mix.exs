@@ -28,7 +28,7 @@ defmodule Advent.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:bitmap, "~> 1.0"}
+      {:credo, "~> 0.5"}
     ]
   end
 end
