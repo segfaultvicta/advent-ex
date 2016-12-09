@@ -17,12 +17,17 @@ defmodule Advent.Fifteen.Three do
     |> String.strip
     |> String.graphemes
     |> Enum.reduce([[0, 0]], &visit/2)
-    |> Enum.uniq
-    |> Enum.count
+    |> Enum.uniq |> Enum.count
   end
 
   def b do
-    File.stream!(@input)
+    instructions = File.read!(@input)
+    |> String.strip
+    |> String.graphemes
+    santa = Enum.take_every(instructions, 2) |> Enum.reduce([[0, 0]], &visit/2)
+    robosanta = Enum.drop_every(instructions, 2) |> Enum.reduce([[0, 0]], &visit/2)
+    santa ++ robosanta |> Enum.uniq |> Enum.count
+
   end
 
 end
