@@ -28,7 +28,8 @@ defmodule Advent.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:credo, "~> 0.5"}
+      {:credo, "~> 0.5"},
+      {:tensor, "~> 0.7.0"}
     ]
   end
 end

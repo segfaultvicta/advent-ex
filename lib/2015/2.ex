@@ -1,4 +1,4 @@
-defmodule AdventOfCode.Y15.D2 do
+defmodule Advent.Fifteen.Two do
 
   @input "./input/2015/2"
 
