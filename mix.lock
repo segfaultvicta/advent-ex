@@ -1,5 +1,7 @@
 %{"array": {:hex, :array, "1.0.1", "c0ae92d35e891e56f80b605b77c2dba6972302f7716719eee0b5417162c695b0", [:mix], []},
   "bitmap": {:hex, :bitmap, "1.0.0", "117f7eefbc070702e974cf06143cb4394e10a383752f7d640d3f614cfaee6064", [:mix], []},
   "bunt": {:hex, :bunt, "0.1.6", "5d95a6882f73f3b9969fdfd1953798046664e6f77ec4e486e6fafc7caad97c6f", [:mix], []},
+  "combination": {:hex, :combination, "0.0.2", "4a7b1ab0871a56a35529df26ea58e226de1b4a1b962d3b2acaa16b5f0ada572f", [:mix], []},
   "credo": {:hex, :credo, "0.5.3", "0c405b36e7651245a8ed63c09e2d52c2e2b89b6d02b1570c4d611e0fcbecf4a2", [:mix], [{:bunt, "~> 0.1.6", [hex: :bunt, optional: false]}]},
+  "defmemo": {:hex, :defmemo, "0.1.1", "44c7efb97b5e9fa88c2ed97d926d6865c781875803d86ebefe127d29d1a0d8d7", [:mix], []},
   "tensor": {:hex, :tensor, "0.7.2", "bc16a405ec76f8e38164339c06a83ba21fbdc431b3ad81555226d6ca064dcafb", [:mix], []}}

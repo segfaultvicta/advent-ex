@@ -14,7 +14,7 @@ defmodule Advent.Mixfile do
   #
   # Type "mix help compile.app" for more information
   def application do
-    [applications: [:logger]]
+    [applications: [:logger, :defmemo]]
   end
 
   # Dependencies can be Hex packages:
@@ -29,7 +29,9 @@ defmodule Advent.Mixfile do
   defp deps do
     [
       {:credo, "~> 0.5"},
-      {:tensor, "~> 0.7.0"}
+      {:tensor, "~> 0.7.0"},
+      {:combination, "~> 0.0.2"},
+      {:defmemo, "~> 0.1.0"}
     ]
   end
 end
