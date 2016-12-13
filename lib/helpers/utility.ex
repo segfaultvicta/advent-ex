@@ -3,4 +3,8 @@ defmodule Advent.Helpers.Utility do
     IO.puts string <> ": " <> inspect thing
     thing
   end
+
+  def i(thing) do
+    i(thing, "something")
+  end
 end
