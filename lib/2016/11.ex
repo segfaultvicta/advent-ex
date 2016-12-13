@@ -132,7 +132,7 @@ defmodule Advent.Sixteen.Eleven do
     |> Enum.map(fn({_, index}) -> index end)
     |> combinations
     |> U.i("combinations")
-    |> indices_to_moves(floor)
+    |> combinations_to_moves(floor)
     |> U.i("indices_to_moves")
     |> moves_to_states(state)
     |> U.i("states")
@@ -162,13 +162,14 @@ defmodule Advent.Sixteen.Eleven do
   def combinations(list) when length(list) > 1 do
     Combination.combine(list, 2) ++ list
   end
-  def moves_to_states(moves, state) do
-    Enum.map(moves, fn(move) -> applymove(state, move)
-    end)
-  end
-  def indices_to_moves(combinations, current_floor) do
+  def combinations_to_moves(combinations, current_floor) do
     IO.puts "inside indices_to_moves..."
     U.i combinations, "combinations"
     U.i current_floor, "current floor"
+  end
+  def moves_to_states(moves, state) do
+    Enum.map(moves, fn(move) ->
+      applymove(state, move)
+    end)
   end
 end
