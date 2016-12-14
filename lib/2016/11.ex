@@ -19,10 +19,10 @@ defmodule Advent.Sixteen.Eleven.Cache do
     Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> openset end)
   end
 
-  def open(state) do
-    if closed? state do
+  def open([tovisit, floor, history]) do
+    if not closed? [tovisit, floor] do
       Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
-        %{openset: openset ++ [state], visited: visited, sort: sort}
+        %{openset: openset ++ [[tovisit, floor, history]], visited: visited, sort: sort}
       end)
     end
   end
@@ -32,7 +32,7 @@ defmodule Advent.Sixteen.Eleven.Cache do
     Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
       %{openset: rest, visited: visited, sort: sort}
     end)
-    best
+    if length(best) >= 1 do best else :nil end
   end
 
   def sort do
@@ -43,7 +43,7 @@ defmodule Advent.Sixteen.Eleven.Cache do
   end
 
   def closed?(state) do
-    not Enum.member?(closed, canonicalise(state))
+    Enum.member?(closed, canonicalise(state))
   end
 
   def close(state) do
@@ -52,7 +52,7 @@ defmodule Advent.Sixteen.Eleven.Cache do
     end)
   end
 
-  def canonicalise({state, floor}) do
+  def canonicalise([state, floor]) do
     state |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
   end
 end
@@ -92,7 +92,7 @@ defmodule Advent.Sixteen.Eleven do
   #@victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
   @victory_condition [4, 4, 4, 4]
   #@initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2]
-  @initial [2, 1, 3, 2]
+  @initial [2, 1, 3, 1]
   #@chips [1, 3, 5, 7, 9]
   @chips [1, 3]
   #@gens [0, 2, 4, 6, 8]
@@ -108,15 +108,13 @@ defmodule Advent.Sixteen.Eleven do
       Enum.at(state, generator) == Enum.at(state, chip)
     end)
   end
-  def valid(state), do: not Enum.any?(Lookup.chips, fn(chip) -> not with_generator(chip, state) and with_another_generator(chip, state) end)
+  def valid({state, _}), do: not Enum.any?(Lookup.chips, fn(chip) -> not with_generator(chip, state) and with_another_generator(chip, state) end)
 
-  def applymove(state, move) do
-    U.i state, "state"
-    U.i state, "move"
-    Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end)
+  def applymove({state, current_floor}, [{move, floor_d}]) do
+    {Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end), current_floor + floor_d}
   end
 
-  def distance({state, floor}) do
+  def distance([state, floor, history]) do
     Enum.reduce(@victory_condition, 1, &(&1+&2)) - Enum.reduce(state, 1, &(&1+&2))
   end
 
@@ -126,23 +124,33 @@ defmodule Advent.Sixteen.Eleven do
   end
 
   def fan({state, floor}) do
+    U.i {state, floor}, "{state, floor} in fan"
     indices = state
     |> Enum.with_index
     |> Enum.filter(fn({at, _}) -> at == floor end)
     |> Enum.map(fn({_, index}) -> index end)
     |> combinations
-    |> U.i("combinations")
     |> combinations_to_moves(floor)
-    |> U.i("indices_to_moves")
-    |> moves_to_states(state)
-    |> U.i("states")
+    |> U.i("combinations_to_moves")
+    |> moves_to_states({state, floor})
+    |> U.i("premap")
+    |> Enum.map(fn([e]) -> e end)
+    |> U.i("moves_to_states")
     |> Enum.filter(&valid/1)
+    |> U.i "fan"
   end
 
-  def search(state, history) do
-    Cache.close(state)
-    Enum.each(fan(state), fn(state) -> Cache.open(state) end)
-    Cache.pop
+  def search({@victory_condition, 4, history}) do
+    U.i history
+    {:ok}
+  end
+
+  def search([tovisit, floor, history]) do
+    U.i [tovisit, floor, history], "searching"
+    Cache.close([tovisit, floor])
+    Enum.each(fan({tovisit, floor}), fn({tovisit, floor}) -> Cache.open([tovisit, floor, history]) end)
+    [tovisit, floor, history] = Cache.pop
+    search([tovisit, floor, history ++ [[tovisit,floor]]])
   end
 
   def a do
@@ -150,26 +158,43 @@ defmodule Advent.Sixteen.Eleven do
     Lookup.init(@all, @chips, @gens)
     Cache.init(&heuristic_sort/2)
 
-    search({initial_state, 2}, [])
+    search([initial_state, 1, [[initial_state,1]]])
   end
 
   def b do
   end
 
   def combinations(list) when length(list) == 1 do
-    list
+    [list]
   end
   def combinations(list) when length(list) > 1 do
-    Combination.combine(list, 2) ++ list
+    Combination.combine(list, 2) ++ Enum.map(list, &([&1]))
   end
-  def combinations_to_moves(combinations, current_floor) do
-    IO.puts "inside indices_to_moves..."
-    U.i combinations, "combinations"
-    U.i current_floor, "current floor"
+  def combinations_to_moves(combinations, floor) do
+    Enum.map(combinations, fn(combo) ->
+      case floor do
+        1 ->
+          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1}]
+        2 ->
+          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1},
+          {Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+        3 ->
+          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1},
+          {Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+        4 ->
+          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+        end
+    end)
   end
   def moves_to_states(moves, state) do
     Enum.map(moves, fn(move) ->
-      applymove(state, move)
+      case length(move) do
+        1 -> [applymove(state, move)]
+        2 ->
+          [umove, dmove] = move
+          [applymove(state, [umove]),applymove(state, [dmove])]
+      end
     end)
+    FUCK
   end
 end
