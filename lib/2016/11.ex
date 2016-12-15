@@ -54,7 +54,7 @@ defmodule Advent.Sixteen.Eleven.Cache do
 
   def canonicalise([state, floor]) do
     state |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
-  end
+    end
 end
 
 defmodule Advent.Sixteen.Eleven.Lookup do
@@ -81,24 +81,34 @@ defmodule Advent.Sixteen.Eleven.Lookup do
   end
 end
 
+defmodule Advent.Sixteen.Eleven.State do
+  defstruct [:result_list, :result_floor]
+
+  def to_tuple(move) do
+    {move.result_list, move.result_floor}
+  end
+end
+
 defmodule Advent.Sixteen.Eleven do
   alias Advent.Sixteen.Eleven.Cache
   alias Advent.Sixteen.Eleven.Lookup
+  alias Advent.Sixteen.Eleven.State
   alias Advent.Helpers.Utility, as: U
-  @max_recursion_depth 20
+
+  @max_recursion_depth 30
   @floors 4
-  #@columns 10
-  @columns 4 # 2*number of chip types - each chip & generator gets a column
-  #@victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
-  @victory_condition [4, 4, 4, 4]
-  #@initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2]
-  @initial [2, 1, 3, 1]
-  #@chips [1, 3, 5, 7, 9]
-  @chips [1, 3]
-  #@gens [0, 2, 4, 6, 8]
-  @gens [0, 2]
-  #@all [:StG, :StC, :PuG, :PuC, :TmG, :TmC, :RuG, :RuC, :CrG, :CrC]
-  @all [:HG, :HC, :LG, :LC]
+  @columns 10
+  #@columns 4 # 2*number of chip types - each chip & generator gets a column
+  @victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+  #@victory_condition [4, 4, 4, 4]
+  @initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2]
+  #@initial [2, 1, 3, 1]
+  @chips [1, 3, 5, 7, 9]
+  #@chips [1, 3]
+  @gens [0, 2, 4, 6, 8]
+  #@gens [0, 2]
+  @all [:StG, :StC, :PuG, :PuC, :TmG, :TmC, :RuG, :RuC, :CrG, :CrC]
+  #@all [:HG, :HC, :LG, :LC]
 
   def with_generator(chip, state) do
     Enum.at(state, chip) == Enum.at(state, chip-1)
@@ -111,7 +121,8 @@ defmodule Advent.Sixteen.Eleven do
   def valid({state, _}), do: not Enum.any?(Lookup.chips, fn(chip) -> not with_generator(chip, state) and with_another_generator(chip, state) end)
 
   def applymove({state, current_floor}, [{move, floor_d}]) do
-    {Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end), current_floor + floor_d}
+    {s,f} = {Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end), current_floor + floor_d}
+    %State{result_list: s, result_floor: f}
   end
 
   def distance([state, floor, history]) do
@@ -123,33 +134,38 @@ defmodule Advent.Sixteen.Eleven do
     distance(move1) < distance(move2)
   end
 
+  def flatten_states(e, acc) do
+    acc ++ Enum.reduce([], e, fn([x], acc2) -> acc2 ++ x end)
+  end
+
   def fan({state, floor}) do
-    U.i {state, floor}, "{state, floor} in fan"
     indices = state
     |> Enum.with_index
     |> Enum.filter(fn({at, _}) -> at == floor end)
     |> Enum.map(fn({_, index}) -> index end)
     |> combinations
     |> combinations_to_moves(floor)
-    |> U.i("combinations_to_moves")
     |> moves_to_states({state, floor})
-    |> U.i("premap")
-    |> Enum.map(fn([e]) -> e end)
-    |> U.i("moves_to_states")
+    |> Enum.reduce([],&flatten_states/2)
+    |> Enum.map(&State.to_tuple/1)
     |> Enum.filter(&valid/1)
-    |> U.i "fan"
   end
 
-  def search({@victory_condition, 4, history}) do
-    U.i history
-    {:ok}
+  def search([tovisit, floor, history]) when length(history) >= @max_recursion_depth do
+    IO.puts "fuuuuuuuuuuuuuuck"
+  end
+
+  def search([@victory_condition, 4, history]) do
+    IO.inspect history
+    IO.puts length(history) - 1
+    {:foundit}
   end
 
   def search([tovisit, floor, history]) do
-    U.i [tovisit, floor, history], "searching"
     Cache.close([tovisit, floor])
     Enum.each(fan({tovisit, floor}), fn({tovisit, floor}) -> Cache.open([tovisit, floor, history]) end)
     [tovisit, floor, history] = Cache.pop
+
     search([tovisit, floor, history ++ [[tovisit,floor]]])
   end
 
@@ -157,7 +173,6 @@ defmodule Advent.Sixteen.Eleven do
     initial_state = @initial
     Lookup.init(@all, @chips, @gens)
     Cache.init(&heuristic_sort/2)
-
     search([initial_state, 1, [[initial_state,1]]])
   end
 
@@ -195,6 +210,5 @@ defmodule Advent.Sixteen.Eleven do
           [applymove(state, [umove]),applymove(state, [dmove])]
       end
     end)
-    FUCK
   end
 end
