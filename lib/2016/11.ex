@@ -19,8 +19,14 @@ defmodule Advent.Sixteen.Eleven.Cache do
     Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> openset end)
   end
 
+  def open?([tovisit, floor, history]) do
+    Enum.member?(openset, [tovisit, floor, history])
+    #Enum.member?(Enum.map(openset, fn([to,floor,hist]) -> [to,floor] end), [tovisit,floor])
+    #false
+  end
+
   def open([tovisit, floor, history]) do
-    if not closed? [tovisit, floor] do
+    if (not closed? [tovisit, floor]) and (not open? [tovisit, floor, history]) do
       Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
         %{openset: openset ++ [[tovisit, floor, history]], visited: visited, sort: sort}
       end)
@@ -95,7 +101,8 @@ defmodule Advent.Sixteen.Eleven do
   alias Advent.Sixteen.Eleven.State
   alias Advent.Helpers.Utility, as: U
 
-  @max_recursion_depth 30
+  @max_tree_depth 55
+  @max_recursion_depth 10000
   @floors 4
   @columns 10
   #@columns 4 # 2*number of chip types - each chip & generator gets a column
@@ -132,6 +139,7 @@ defmodule Advent.Sixteen.Eleven do
   # Returns true if move1 is better than move2
   def heuristic_sort(move1, move2) do
     distance(move1) < distance(move2)
+    #:crypto.rand_uniform(0,2) == 1
   end
 
   def flatten_states(e, acc) do
@@ -151,29 +159,50 @@ defmodule Advent.Sixteen.Eleven do
     |> Enum.filter(&valid/1)
   end
 
-  def search([tovisit, floor, history]) when length(history) >= @max_recursion_depth do
-    IO.puts "fuuuuuuuuuuuuuuck"
+  def search([tovisit, floor, history], _) when length(history) >= @max_tree_depth do
+    Cache.close([tovisit, floor])
+    {:prune, 0, 0, 0}
   end
 
-  def search([@victory_condition, 4, history]) do
-    IO.inspect history
-    IO.puts length(history) - 1
-    {:foundit}
+  def search(_, depth) when depth >= @max_recursion_depth do
+    {:fuck, 0, depth, 0}
   end
 
-  def search([tovisit, floor, history]) do
+  def search([@victory_condition, 4, history], depth) do
+    {:ok, length(history) - 1, depth, length(Cache.openset)}
+  end
+
+  def search([tovisit, floor, history], depth) do
+    #U.i {tovisit, floor}, "search:"
     Cache.close([tovisit, floor])
     Enum.each(fan({tovisit, floor}), fn({tovisit, floor}) -> Cache.open([tovisit, floor, history]) end)
+    #U.i length(Cache.openset), "openset cardinality"
+    Cache.sort
     [tovisit, floor, history] = Cache.pop
 
-    search([tovisit, floor, history ++ [[tovisit,floor]]])
+    {code, pathlength, depth, openset} = search([tovisit, floor, history ++ [[tovisit,floor]]], depth+1)
+
+    case code do
+      :ok ->
+        {code, pathlength, depth, openset}
+      :fuck ->
+        {code, depth, "well, fuck."}
+      :prune ->
+        [tovisit, floor, history]  = Cache.pop
+        search([tovisit, floor, history ++ [[tovisit,floor]]], depth+2)
+    end
   end
 
   def a do
     initial_state = @initial
     Lookup.init(@all, @chips, @gens)
     Cache.init(&heuristic_sort/2)
-    search([initial_state, 1, [[initial_state,1]]])
+    {c, l, d, o} = search([initial_state, 1, [[initial_state,1]]], 0)
+    U.i c, "status code"
+    U.i l, "path length"
+    U.i d, "recursion depth required"
+    U.i o, "openset cardinality at completion"
+    l
   end
 
   def b do
