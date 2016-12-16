@@ -1,5 +1,6 @@
 defmodule Advent.Sixteen.Eleven.Cache do
   alias Advent.Helpers.Utility, as: U
+  alias Advent.Helpers.Eleven.State
 
   def init(heuristic_function) do
     Agent.start_link(fn ->
@@ -8,59 +9,68 @@ defmodule Advent.Sixteen.Eleven.Cache do
   end
 
   defp _sort_function do
-    Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> sort end)
+    Agent.get(:cache, fn(%{openset: _, visited: _, sort: sort}) -> sort end)
   end
 
   def closed do
-    Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> visited end)
+    Agent.get(:cache, fn(%{openset: _, visited: visited, sort: _}) -> visited end)
   end
 
   def openset do
-    Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> openset end)
+    Agent.get(:cache, fn(%{openset: openset, visited: _, sort: _}) -> openset end)
   end
 
-  def open?([tovisit, floor, history]) do
-    Enum.member?(openset, [tovisit, floor, history])
-    #Enum.member?(Enum.map(openset, fn([to,floor,hist]) -> [to,floor] end), [tovisit,floor])
-    #false
+  def closed?(canonical_state) do
+    Enum.member?(closed, canonical_state)
   end
 
-  def open([tovisit, floor, history]) do
-    if (not closed? [tovisit, floor]) and (not open? [tovisit, floor, history]) do
+  def close(canonical_state) do
+    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
+      %{openset: openset, visited: MapSet.put(visited, canonical_state), sort: sort}
+    end)
+  end
+
+  def open?(state) do
+    Enum.any?(openset, fn(open) -> open.list == state.list and open.floor == state.floor end)
+  end
+
+  def open(state, canonical_state) do
+    #U.i state, "opening state"
+    #U.i canonical_state, "with canonical form"
+    if (not closed? canonical_state) and (not open? state) do
       Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
-        %{openset: [openset | [[tovisit, floor, history]]], visited: visited, sort: sort}
+        %{openset: [state | openset], visited: visited, sort: sort}
       end)
     end
   end
 
   def pop do
-    [best|rest] = openset
-    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
-      %{openset: rest, visited: visited, sort: sort}
-    end)
-    if length(best) >= 1 do best else :nil end
+    open = openset
+    if length(open) > 1 do
+      [best|rest] = openset
+      Agent.update(:cache, fn(%{openset: _, visited: visited, sort: sort}) ->
+        %{openset: rest, visited: visited, sort: sort}
+      end)
+      best
+    else
+      if length(open) == 1 do
+        [last] = openset
+        Agent.update(:cache, fn(%{openset: _, visited: visited, sort: sort}) ->
+          %{openset: [], visited: visited, sort: sort}
+        end)
+        last
+      else
+        []
+      end
+    end
   end
 
   def sort do
     sorted = Enum.sort(openset, _sort_function)
-    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
+    Agent.update(:cache, fn(%{openset: _, visited: visited, sort: sort}) ->
       %{openset: sorted, visited: visited, sort: sort}
     end)
   end
-
-  def closed?(state) do
-    Enum.member?(closed, canonicalise(state))
-  end
-
-  def close(state) do
-    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
-      %{openset: openset, visited: MapSet.put(visited, canonicalise(state)), sort: sort}
-    end)
-  end
-
-  def canonicalise([state, floor]) do
-    state |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
-    end
 end
 
 defmodule Advent.Sixteen.Eleven.Lookup do
@@ -88,10 +98,34 @@ defmodule Advent.Sixteen.Eleven.Lookup do
 end
 
 defmodule Advent.Sixteen.Eleven.State do
-  defstruct [:result_list, :result_floor]
+  alias Advent.Sixteen.Eleven.Lookup
+  alias Advent.Helpers.Utility, as: U
+  defstruct [:list, :floor, :history]
 
-  def to_tuple(move) do
-    {move.result_list, move.result_floor}
+  def to_list(state) do
+    [state.list, state.floor, state.history]
+  end
+
+  defp _with_generator(chip, state) do
+    Enum.at(state, chip) == Enum.at(state, chip-1)
+  end
+
+  defp _with_another_generator(chip, state) do
+    Enum.any?(Lookup.gens, fn(generator) ->
+      Enum.at(state, generator) == Enum.at(state, chip)
+    end)
+  end
+
+  def valid(state) do
+    #U.i state, "testing validity of"
+    not Enum.any?(Lookup.chips, fn(chip) ->
+      not _with_generator(chip, state.list) and _with_another_generator(chip, state.list)
+    end)
+  end
+
+  def canonicalise(state) do
+    #U.i state, "to canonicalise:"
+    state.list |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> state.floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
   end
 end
 
@@ -101,8 +135,8 @@ defmodule Advent.Sixteen.Eleven do
   alias Advent.Sixteen.Eleven.State
   alias Advent.Helpers.Utility, as: U
 
-  @max_tree_depth 55
-  @max_recursion_depth 10000
+  @max_tree 12
+  @max_iter 10000
   @floors 4
   @columns 10
   @columns 4 # 2*number of chip types - each chip & generator gets a column
@@ -117,92 +151,73 @@ defmodule Advent.Sixteen.Eleven do
   @all [:StG, :StC, :PuG, :PuC, :TmG, :TmC, :RuG, :RuC, :CrG, :CrC]
   @all [:HG, :HC, :LG, :LC]
 
-  def with_generator(chip, state) do
-    Enum.at(state, chip) == Enum.at(state, chip-1)
-  end
-  def with_another_generator(chip, state) do
-    Enum.any?(Lookup.gens, fn(generator) ->
-      Enum.at(state, generator) == Enum.at(state, chip)
-    end)
-  end
-  def valid({state, _}), do: not Enum.any?(Lookup.chips, fn(chip) -> not with_generator(chip, state) and with_another_generator(chip, state) end)
-
-  def applymove({state, current_floor}, [{move, floor_d}]) do
-    {s,f} = {Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end), current_floor + floor_d}
-    %State{result_list: s, result_floor: f}
-  end
-
-  def distance([state, floor, history]) do
-    Enum.reduce(@victory_condition, 1, &(&1+&2)) - Enum.reduce(state, 1, &(&1+&2))
+  def distance(state) do
+    Enum.reduce(@victory_condition, 1, &(&1+&2)) - Enum.reduce(state.list, 1, &(&1+&2))
   end
 
   # Returns true if move1 is better than move2
   def heuristic_sort(move1, move2) do
     distance(move1) < distance(move2)
-    #:crypto.rand_uniform(0,2) == 1
   end
 
   def flatten_states(e, acc) do
-    acc ++ Enum.reduce([], e, fn([x], acc2) -> acc2 ++ x end)
+    [Enum.reduce([], e, fn([x], [acc2]) -> [x|acc] end)|acc]
   end
 
-  def fan({state, floor}) do
-    indices = state
+  def fan(state) do
+    %State{list: list, floor: floor, history: _} = state
+    list
     |> Enum.with_index
     |> Enum.filter(fn({at, _}) -> at == floor end)
     |> Enum.map(fn({_, index}) -> index end)
     |> combinations
     |> combinations_to_moves(floor)
-    |> moves_to_states({state, floor})
-    |> Enum.reduce([],&flatten_states/2)
-    |> Enum.map(&State.to_tuple/1)
-    |> Enum.filter(&valid/1)
+    |> moves_to_states(state)
+    |> List.flatten
+    |> Enum.filter(&State.valid/1)
   end
 
-  def search([tovisit, floor, history], _) when length(history) >= @max_tree_depth do
-    Cache.close([tovisit, floor])
-    {:prune, 0, 0, 0}
+  defp do_process_row([], acc), do: acc
+  defp do_process_row(state, acc) do
+    #U.i acc, "acc"
+    #U.i state, "popped from cache"
+    Cache.close(State.canonicalise(state))
+    do_process_row(Cache.pop, [state|acc])
   end
 
-  def search(_, depth) when depth >= @max_recursion_depth do
-    {:fuck, 0, depth, 0}
+  def search(initial, 0) do
+    Cache.open(initial, State.canonicalise(initial))
+    search(1)
   end
 
-  def search([@victory_condition, 4, history], depth) do
-    {:ok, length(history) - 1, depth, length(Cache.openset)}
-  end
+  def search(depth) do
+    U.i depth, "searching at depth"
+    #U.i Cache.openset, "current open set"
+    #U.i Cache.closed, "current closed set"
 
-  def search([tovisit, floor, history], depth) do
-    #U.i {tovisit, floor}, "search:"
-    Cache.close([tovisit, floor])
-    Enum.each(fan({tovisit, floor}), fn({tovisit, floor}) -> Cache.open([tovisit, floor, history]) end)
-    #U.i length(Cache.openset), "openset cardinality"
-    Cache.sort
-    [tovisit, floor, history] = Cache.pop
+    Enum.each(do_process_row(Cache.pop, []), fn(open) ->
+      Enum.each(fan(open), fn(succ) ->
+        Cache.open(succ, State.canonicalise(succ))
+      end)
+    end)
 
-    {code, pathlength, depth, openset} = search([tovisit, floor, history ++ [[tovisit,floor]]], depth+1)
+    U.i length(Cache.openset), "  cardinality of openset"
 
-    case code do
-      :ok ->
-        {code, pathlength, depth, openset}
-      :fuck ->
-        {code, depth, "well, fuck."}
-      :prune ->
-        [tovisit, floor, history]  = Cache.pop
-        search([tovisit, floor, history ++ [[tovisit,floor]]], depth+2)
+    #U.i Cache.openset, "current open set"
+    #U.i Cache.closed, "current closed set"
+
+    if Enum.any?(Cache.openset, fn(state) -> state.list == @victory_condition end) do
+      depth
+    else
+      search(depth+1)
     end
   end
 
   def a do
-    initial_state = @initial
+    initial_state = %State{list: @initial, floor: 1, history: [@initial]}
     Lookup.init(@all, @chips, @gens)
     Cache.init(&heuristic_sort/2)
-    {c, l, d, o} = search([initial_state, 1, [[initial_state,1]]], 0)
-    U.i c, "status code"
-    U.i l, "path length"
-    U.i d, "recursion depth required"
-    U.i o, "openset cardinality at completion"
-    l
+    search(initial_state, 0)
   end
 
   def b do
@@ -218,20 +233,23 @@ defmodule Advent.Sixteen.Eleven do
     Enum.map(combinations, fn(combo) ->
       case floor do
         1 ->
-          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1}]
+          [%State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), floor: 1}]
         2 ->
-          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1},
-          {Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+          [%State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), floor: 1},
+          %State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), floor: -1}]
         3 ->
-          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), 1},
-          {Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+          [%State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [1] else acc ++ [0] end end), floor: 1},
+          %State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), floor: -1}]
         4 ->
-          [{Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), -1}]
+          [%State{list: Enum.reduce(0..@columns-1, [], fn(col, acc) -> if Enum.member?(combo, col) do acc ++ [-1] else acc ++ [0] end end), floor: -1}]
         end
     end)
   end
+
   def moves_to_states(moves, state) do
     Enum.map(moves, fn(move) ->
+      #U.i state, "state"
+      #U.i move, "move"
       case length(move) do
         1 -> [applymove(state, move)]
         2 ->
@@ -240,4 +258,11 @@ defmodule Advent.Sixteen.Eleven do
       end
     end)
   end
+
+  def applymove(state, [move]) do
+    #U.i state, "state in applymove"
+    #U.i move, "move in applymode"
+    %State{list: Enum.zip(state.list, move.list) |> Enum.map(fn({x,y}) -> x + y end), floor: state.floor + move.floor, history: state.history}
+  end
+
 end
