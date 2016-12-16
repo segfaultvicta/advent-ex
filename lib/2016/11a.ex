@@ -1,5 +1,6 @@
-defmodule Advent.Sixteen.Eleven.Cache do
+defmodule Advent.Sixteen.ElevenA.Cache do
   alias Advent.Helpers.Utility, as: U
+  alias Advent.Helpers.ElevenA.State
 
   def init(heuristic_function) do
     Agent.start_link(fn ->
@@ -19,16 +20,24 @@ defmodule Advent.Sixteen.Eleven.Cache do
     Agent.get(:cache, fn(%{openset: openset, visited: visited, sort: sort}) -> openset end)
   end
 
-  def open?([tovisit, floor, history]) do
-    Enum.member?(openset, [tovisit, floor, history])
-    #Enum.member?(Enum.map(openset, fn([to,floor,hist]) -> [to,floor] end), [tovisit,floor])
-    #false
+  def closed?(canonical_state) do
+    Enum.member?(closed, canonical_state)
   end
 
-  def open([tovisit, floor, history]) do
-    if (not closed? [tovisit, floor]) and (not open? [tovisit, floor, history]) do
+  def close(canonical_state) do
+    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
+      %{openset: openset, visited: MapSet.put(visited, canonical_state), sort: sort}
+    end)
+  end
+
+  def open?(state) do
+    Enum.member?(openset, state)
+  end
+
+  def open(state, canonical_state) do
+    if (not closed? canonical_state) and (not open? state.to_list) do
       Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
-        %{openset: [openset | [[tovisit, floor, history]]], visited: visited, sort: sort}
+        %{openset: [state.to_list | openset], visited: visited, sort: sort}
       end)
     end
   end
@@ -47,23 +56,9 @@ defmodule Advent.Sixteen.Eleven.Cache do
       %{openset: sorted, visited: visited, sort: sort}
     end)
   end
-
-  def closed?(state) do
-    Enum.member?(closed, canonicalise(state))
-  end
-
-  def close(state) do
-    Agent.update(:cache, fn(%{openset: openset, visited: visited, sort: sort}) ->
-      %{openset: openset, visited: MapSet.put(visited, canonicalise(state)), sort: sort}
-    end)
-  end
-
-  def canonicalise([state, floor]) do
-    state |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
-    end
 end
 
-defmodule Advent.Sixteen.Eleven.Lookup do
+defmodule Advent.Sixteen.ElevenA.Lookup do
   def init(all, chips, gens) do
     Agent.start_link(fn ->
       [all, chips, gens]
@@ -87,22 +82,43 @@ defmodule Advent.Sixteen.Eleven.Lookup do
   end
 end
 
-defmodule Advent.Sixteen.Eleven.State do
-  defstruct [:result_list, :result_floor]
+defmodule Advent.Sixteen.ElevenA.State do
+  alias Advent.Sixteen.ElevenA.Lookup
+  defstruct [:list, :floor]
 
-  def to_tuple(move) do
-    {move.result_list, move.result_floor}
+  def to_list(state) do
+    [state.list, state.floor]
+  end
+
+  defp _with_generator(chip, state) do
+    Enum.at(state, chip) == Enum.at(state, chip-1)
+  end
+
+  defp _with_another_generator(chip, state) do
+    Enum.any?(Lookup.gens, fn(generator) ->
+      Enum.at(state, generator) == Enum.at(state, chip)
+    end)
+  end
+
+  def valid(state) do
+    not Enum.any?(Lookup.chips, fn(chip) ->
+      not _with_generator(chip, state.list) and _with_another_generator(chip, state.list)
+    end)
+  end
+
+  def canonicalise(state) do
+    state.list |> Enum.chunk(2) |> Enum.map(fn([genfloor, chipfloor]) -> state.floor*100 + genfloor*10 + chipfloor end) |> Enum.sort
   end
 end
 
-defmodule Advent.Sixteen.Eleven do
-  alias Advent.Sixteen.Eleven.Cache
-  alias Advent.Sixteen.Eleven.Lookup
-  alias Advent.Sixteen.Eleven.State
+defmodule Advent.Sixteen.ElevenA do
+  alias Advent.Sixteen.ElevenA.Cache
+  alias Advent.Sixteen.ElevenA.Lookup
+  alias Advent.Sixteen.ElevenA.State
   alias Advent.Helpers.Utility, as: U
 
-  @max_tree_depth 55
-  @max_recursion_depth 10000
+  @max_tree 55
+  @max_iter 10000
   @floors 4
   @columns 10
   @columns 4 # 2*number of chip types - each chip & generator gets a column
@@ -117,19 +133,9 @@ defmodule Advent.Sixteen.Eleven do
   @all [:StG, :StC, :PuG, :PuC, :TmG, :TmC, :RuG, :RuC, :CrG, :CrC]
   @all [:HG, :HC, :LG, :LC]
 
-  def with_generator(chip, state) do
-    Enum.at(state, chip) == Enum.at(state, chip-1)
-  end
-  def with_another_generator(chip, state) do
-    Enum.any?(Lookup.gens, fn(generator) ->
-      Enum.at(state, generator) == Enum.at(state, chip)
-    end)
-  end
-  def valid({state, _}), do: not Enum.any?(Lookup.chips, fn(chip) -> not with_generator(chip, state) and with_another_generator(chip, state) end)
-
   def applymove({state, current_floor}, [{move, floor_d}]) do
     {s,f} = {Enum.zip(state, move) |> Enum.map(fn({x,y}) -> x + y end), current_floor + floor_d}
-    %State{result_list: s, result_floor: f}
+    %State{list: s, floor: f}
   end
 
   def distance([state, floor, history]) do
@@ -156,7 +162,7 @@ defmodule Advent.Sixteen.Eleven do
     |> moves_to_states({state, floor})
     |> Enum.reduce([],&flatten_states/2)
     |> Enum.map(&State.to_tuple/1)
-    |> Enum.filter(&valid/1)
+    |> Enum.filter(&State.valid/1)
   end
 
   def search([tovisit, floor, history], _) when length(history) >= @max_tree_depth do
