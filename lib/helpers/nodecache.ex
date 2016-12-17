@@ -7,6 +7,12 @@ defmodule Advent.Helpers.NodeCache do
     end, name: :cache)
   end
 
+  def init() do
+    Agent.start_link(fn ->
+      %{openset: [], visited: MapSet.new, sort: :nil}
+    end, name: :cache)
+  end
+
   defp _sort_function do
     Agent.get(:cache, fn(%{openset: _, visited: _, sort: sort}) -> sort end)
   end
@@ -64,9 +70,11 @@ defmodule Advent.Helpers.NodeCache do
   end
 
   def sort do
-    sorted = Enum.sort(openset, _sort_function)
-    Agent.update(:cache, fn(%{openset: _, visited: visited, sort: sort}) ->
-      %{openset: sorted, visited: visited, sort: sort}
-    end)
+    if _sort_function != nil do
+      sorted = Enum.sort(openset, _sort_function)
+      Agent.update(:cache, fn(%{openset: _, visited: visited, sort: sort}) ->
+        %{openset: sorted, visited: visited, sort: sort}
+      end)
+    end
   end
 end
