@@ -38,6 +38,7 @@ defmodule Advent.Sixteen.Eleven.Cache do
     #U.i state, "opening state"
     #U.i canonical_state, "with canonical form"
     if (not closed? canonical_state) and (not open? state) do
+      close(canonical_state)
       Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
         %{openset: [state | openset], visited: visited, sort: sort}
       end)
@@ -74,9 +75,9 @@ defmodule Advent.Sixteen.Eleven.Cache do
 end
 
 defmodule Advent.Sixteen.Eleven.Lookup do
-  def init(all, chips, gens) do
+  def init(chips, gens) do
     Agent.start_link(fn ->
-      [all, chips, gens]
+      [chips, gens]
     end, name: :lookup)
   end
 
@@ -85,15 +86,11 @@ defmodule Advent.Sixteen.Eleven.Lookup do
   end
 
   def chips do
-    curr |> Enum.at(1)
+    curr |> Enum.at(0)
   end
 
   def gens do
-    curr |> Enum.at(2)
-  end
-
-  def c(index) do
-    curr |> Enum.at(0) |> Enum.at(index)
+    curr |> Enum.at(1)
   end
 end
 
@@ -135,21 +132,26 @@ defmodule Advent.Sixteen.Eleven do
   alias Advent.Sixteen.Eleven.State
   alias Advent.Helpers.Utility, as: U
 
-  @max_tree 12
+  use Timing
+
+  @max_tree 55
   @max_iter 10000
   @floors 4
-  @columns 10
-  @columns 4 # 2*number of chip types - each chip & generator gets a column
-  @victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
-  @victory_condition [4, 4, 4, 4]
-  @initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2]
-  @initial [2, 1, 3, 1]
-  @chips [1, 3, 5, 7, 9]
-  @chips [1, 3]
-  @gens [0, 2, 4, 6, 8]
-  @gens [0, 2]
-  @all [:StG, :StC, :PuG, :PuC, :TmG, :TmC, :RuG, :RuC, :CrG, :CrC]
-  @all [:HG, :HC, :LG, :LC]
+  @columns 14
+  #@columns 10
+  #@columns 4 # 2*number of chip types - each chip & generator gets a column
+  @victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+  #@victory_condition [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+  #@victory_condition [4, 4, 4, 4]
+  @initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2, 1, 1, 1, 1]
+  #@initial [1, 1, 1, 1, 2, 3, 2, 2, 2, 2]
+  #@initial [2, 1, 3, 1]
+  @chips [1, 3, 5, 7, 9, 11, 13]
+  #@chips [1, 3, 5, 7, 9]
+  #@chips [1, 3]
+  @gens [0, 2, 4, 6, 8, 10, 12]
+  #@gens [0, 2, 4, 6, 8]
+  #@gens [0, 2]
 
   def distance(state) do
     Enum.reduce(@victory_condition, 1, &(&1+&2)) - Enum.reduce(state.list, 1, &(&1+&2))
@@ -181,7 +183,7 @@ defmodule Advent.Sixteen.Eleven do
   defp do_process_row(state, acc) do
     #U.i acc, "acc"
     #U.i state, "popped from cache"
-    Cache.close(State.canonicalise(state))
+    #Cache.close(State.canonicalise(state))
     do_process_row(Cache.pop, [state|acc])
   end
 
@@ -192,6 +194,7 @@ defmodule Advent.Sixteen.Eleven do
 
   def search(depth) do
     U.i depth, "searching at depth"
+    #IO.gets "boop?"
     #U.i Cache.openset, "current open set"
     #U.i Cache.closed, "current closed set"
 
@@ -215,9 +218,12 @@ defmodule Advent.Sixteen.Eleven do
 
   def a do
     initial_state = %State{list: @initial, floor: 1, history: [@initial]}
-    Lookup.init(@all, @chips, @gens)
+    Lookup.init(@chips, @gens)
     Cache.init(&heuristic_sort/2)
-    search(initial_state, 0)
+
+    {elapsed, result} = time do
+      search(initial_state, 0)
+    end
   end
 
   def b do

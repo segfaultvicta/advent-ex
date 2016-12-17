@@ -65,16 +65,6 @@ defmodule Advent.Sixteen.Twelve do
   end
 
   def a do
-    testprogram = [
-      {&Register.cpy/2,  41, :d},
-      {&Register.cpy/2,  :d, :a},
-      {&Register.inc/2,  :a, :nil},
-      {&Register.inc/2,  :a, :nil},
-      {&Register.dec/2,  :a, :nil},
-      {&Register.jnz/2,  :a, 2},
-      {&Register.dec/2,  :a, :nil}
-    ]
-
     program = [
       {&Register.cpy/2,  1, :a},
       {&Register.cpy/2,  1, :b},

@@ -6,7 +6,7 @@ defmodule Advent.Fifteen.Two do
     #String.split(String.strip(line), "x")
     String.strip(line)
     |> String.split("x")
-    |> Enum.map fn(dim) -> String.to_integer(dim) end
+    |> Enum.map(fn(dim) -> String.to_integer(dim) end)
   end
 
   def dims_to_surface_area([length, width, height]) do
