@@ -2,19 +2,19 @@ defmodule Advent.Sixteen.Seventeen.State do
   alias Advent.Helpers.Utility, as: U
   alias Advent.Sixteen.Seventeen.State
 
-  defstruct [:x, :y, :path]
-
-  @input "awrkjxxr"
-  #@input "ihgpwlah"
+  defstruct [:x, :y, :laststep, :hashcontext]
 
   @opendoor ["B", "C", "D", "E", "F"]
 
   def to_list(state) do
-    [state.x, state.y, state.path]
+    [state.x, state.y, state.laststep, state.hashcontext]
   end
 
   def valid(state, stateList) do
-    doors = :crypto.hash(:md5 , @input <> state.path) |> Base.encode16()
+    #doors = :crypto.hash(:md5 , @input <> state.path) |> Base.encode16()
+    #U.i state, "checking validity of"
+    newcontext = :crypto.hash_update(state.hashcontext, state.laststep)
+    :crypto.hash_final(newcontext) |> Base.encode16()
     |> String.codepoints |> Enum.take(4)
     |> Enum.zip(stateList)
     |> Enum.filter(fn({key, teststate}) ->
@@ -25,13 +25,14 @@ defmodule Advent.Sixteen.Seventeen.State do
       end
     end)
     |> Enum.map(fn({key, teststate}) -> teststate end)
+    |> Enum.map(fn(teststate) -> %{teststate | hashcontext: newcontext} end)
   end
 
   def successors(state) do
-    nesw = [%State{x: state.x - 1, y: state.y, path: state.path <> "U"},
-            %State{x: state.x + 1, y: state.y, path: state.path <> "D"},
-            %State{x: state.x, y: state.y - 1, path: state.path <> "L"},
-            %State{x: state.x, y: state.y + 1, path: state.path <> "R"},]
+    nesw = [%State{x: state.x - 1, y: state.y, laststep: "U", hashcontext: state.hashcontext},
+            %State{x: state.x + 1, y: state.y, laststep: "D", hashcontext: state.hashcontext},
+            %State{x: state.x, y: state.y - 1, laststep: "L", hashcontext: state.hashcontext},
+            %State{x: state.x, y: state.y + 1, laststep: "R", hashcontext: state.hashcontext},]
     valid(state, nesw)
   end
 
@@ -46,11 +47,14 @@ defmodule Advent.Sixteen.Seventeen do
   alias Advent.Helpers.Utility, as: U
   use Timing
 
+  @input "awrkjxxr"
+  #@input "ihgpwlah"
+
   defp get_openset([], acc), do: acc
   defp get_openset(state, acc), do: get_openset(Cache.pop, [state|acc])
 
   def search(initial, 0, b_side) do
-    Cache.open(initial, State.canonicalise(initial))
+    Cache.open(initial)
     if b_side do do_search_b(1) else do_search_a(1) end
   end
 
@@ -64,7 +68,7 @@ defmodule Advent.Sixteen.Seventeen do
         if ((succ.x == 3) and (succ.y == 3)) do
           succ
         else
-          Cache.open(succ, State.canonicalise(succ))
+          Cache.open(succ)
           :nil
         end
       end)
@@ -73,6 +77,7 @@ defmodule Advent.Sixteen.Seventeen do
 
     if length(potential_wins) > 0 do
       IO.puts "new candidate path, length #{depth}"
+      IO.puts "open set cardinality is #{length(Cache.openset)}"
     end
 
     cond do
@@ -85,7 +90,7 @@ defmodule Advent.Sixteen.Seventeen do
   end
 
   def b do
-    initial_state = %State{x: 0, y: 0, path: ""}
+    initial_state = %State{x: 0, y: 0, hashcontext: :crypto.hash_init(:md5), laststep: @input}
     Cache.init()
 
     {elapsed, result} = time do

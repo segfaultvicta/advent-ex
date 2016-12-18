@@ -48,6 +48,12 @@ defmodule Advent.Helpers.NodeCache do
     end
   end
 
+  def open(state) do
+    Agent.update(:cache, fn(%{openset: openset,visited: visited, sort: sort}) ->
+      %{openset: [state | openset], visited: visited, sort: sort}
+    end)
+  end
+
   def pop do
     open = openset
     if length(open) > 1 do
