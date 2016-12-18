@@ -55,14 +55,14 @@ defmodule Advent.Sixteen.Seventeen do
 
   def search(initial, 0, b_side) do
     Cache.open(initial)
-    if b_side do do_search_b(1) else do_search_a(1) end
+    if b_side do do_search_b(1, 0) else do_search_a(1) end
   end
 
   def do_search_a(depth) do
     # lol I don't have my working A solution anymore, sorry
   end
 
-  def do_search_b(depth) do
+  def do_search_b(depth, best) do
     potential_wins = Enum.map(get_openset(Cache.pop, []), fn(open) ->
       Enum.map(State.successors(open), fn(succ) ->
         if ((succ.x == 3) and (succ.y == 3)) do
@@ -76,13 +76,14 @@ defmodule Advent.Sixteen.Seventeen do
     end) |> Enum.filter(fn(open) -> open != [] end)
 
     if length(potential_wins) > 0 do
-      IO.puts "new candidate path, length #{depth}"
-      IO.puts "open set cardinality is #{length(Cache.openset)}"
+      #IO.puts "new candidate path, length #{depth}"
+      #IO.puts "open set cardinality is #{length(Cache.openset)}"
+      best = depth
     end
 
     cond do
-      length(Cache.openset) == 0 -> "aaaand we're done here"
-      true -> do_search_b(depth+1)
+      length(Cache.openset) == 0 -> best
+      true -> do_search_b(depth+1, best)
     end
   end
 
