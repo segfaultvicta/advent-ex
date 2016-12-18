@@ -6,9 +6,10 @@ defmodule Advent.Sixteen.Fourteen do
   import DefMemo
 
   @input "yjdafjpo"
-  @input "abc"
+  #@input "abc"
 
   defmemo stretched_md5(index) do
+    #IO.puts index
     stretch(:crypto.hash(:md5, @input <> Integer.to_string(index)) |> Base.encode16(case: :lower), 2016) |> to_charlist
   end
 
@@ -17,7 +18,7 @@ defmodule Advent.Sixteen.Fourteen do
   end
 
   def stretch(hash, 0), do: hash
-  defmemo stretch(hash,times) do
+  def stretch(hash,times) do
     times = times - 1
     :crypto.hash(:md5, hash) |> Base.encode16(case: :lower) |> stretch(times)
   end
@@ -45,7 +46,7 @@ defmodule Advent.Sixteen.Fourteen do
   defmemo stretch_run(index, hash, triple) do
     run = String.duplicate(to_string(triple), 5)
     Enum.any?((index+1)..(index+1000), fn(i) ->
-      String.contains?(to_string(md5(i)), run)
+      String.contains?(to_string(stretched_md5(i)), run)
     end)
   end
 
