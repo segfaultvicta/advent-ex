@@ -31,7 +31,7 @@ defmodule Advent.Mixfile do
       {:credo, "~> 0.5"},
       {:tensor, "~> 0.7.0"},
       {:combination, "~> 0.0.2"},
-      {:defmemo, "~> 0.1.0"},
+      {:defmemo, "~> 0.1.1"},
       {:timing, git: "git://github.com/Primordus/Timing.git"}
     ]
   end
