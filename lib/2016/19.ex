@@ -7,7 +7,6 @@ defmodule Advent.Sixteen.Nineteen do
 
   def eliminate([elf]), do: elf
   def eliminate(elves) when length(elves) > 1 do
-    #U.i elves, "elves"
     if rem(length(elves), 2) == 0 do
       eliminate(Enum.take_every(elves,2))
     else
